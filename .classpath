@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="resources"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.jst.j2ee.internal.web.container"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.jst.j2ee.internal.module.container"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8">
+		<attributes>
+			<attribute name="owner.project.facets" value="java"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/commons-codec-1.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/commons-collections-3.2.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/commons-lang-2.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/esapi-2.0.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/joda-time-2.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/opensaml-2.6.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/openws-1.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/serializer-2.7.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/servlet-api-2.5.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/velocity-1.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xalan-2.7.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xercesImpl-2.10.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xml-resolver-1.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/not-yet-commons-ssl-0.3.9.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xmlsec-1.5.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xmltooling-1.4.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/commons-logging-1.1.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/Users/anveshas/Desktop/opensaml2.6.0/xml-apis-1.4.01.jar"/>
+	<classpathentry kind="output" path="build/classes"/>
+</classpath>
