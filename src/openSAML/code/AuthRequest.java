@@ -1,5 +1,7 @@
 package openSAML.code;
 
+import java.security.KeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -18,20 +20,30 @@ import org.opensaml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml2.core.AuthnStatement;
 import org.opensaml.saml2.core.Condition;
 import org.opensaml.saml2.core.Conditions;
+import org.opensaml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml2.core.Issuer;
 import org.opensaml.saml2.core.NameID;
 import org.opensaml.saml2.core.OneTimeUse;
+import org.opensaml.saml2.core.Response;
 import org.opensaml.saml2.core.Subject;
 import org.opensaml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml2.core.impl.AssertionMarshaller;
+import org.opensaml.saml2.encryption.Encrypter;
+import org.opensaml.saml2.encryption.Encrypter.KeyPlacement;
 import org.opensaml.xml.ConfigurationException;
 import org.opensaml.xml.XMLObjectBuilder;
 import org.opensaml.xml.XMLObjectBuilderFactory;
+import org.opensaml.xml.encryption.EncryptionConstants;
+import org.opensaml.xml.encryption.EncryptionException;
+import org.opensaml.xml.encryption.EncryptionParameters;
+import org.opensaml.xml.encryption.KeyEncryptionParameters;
 import org.opensaml.xml.io.MarshallingException;
 import org.opensaml.xml.io.AbstractXMLObjectMarshaller;
 import org.opensaml.xml.io.MarshallingException;
 import org.opensaml.xml.schema.XSString;
+import org.opensaml.xml.security.SecurityHelper;
+import org.opensaml.xml.security.credential.Credential;
 import org.opensaml.xml.util.XMLHelper;
 import org.w3c.dom.Element;
 
@@ -54,14 +66,14 @@ public class AuthRequest
 	public void samlWriter() throws MarshallingException {
 		try {
     		SAMLInputContainer input = new SAMLInputContainer();
-			input.strIssuer = "http://synesty.com";
-			input.strNameID = "UserJohnSmith";
-			input.strNameQualifier = "My Website";
+			input.strIssuer = "https://localhost:8443/openSAML/index.jsp";
+			input.strNameID = "Anvesha Sinha";
+			input.strNameQualifier = "openSAML";
 			input.sessionId = "abcdedf1234567";
  
 			Map<String, String> customAttributes = new HashMap<String, String>();
-			customAttributes.put("FirstName", "John");
-			customAttributes.put("LastName", "Smith");
+			customAttributes.put("FirstName", "Anvesha");
+			customAttributes.put("LastName", "Sinha");
  
 			input.attributes = customAttributes;
  
@@ -73,6 +85,7 @@ public class AuthRequest
 			System.out.println("Assertion String: " + originalAssertionString);
  
 			// TODO: now you can also add encryption....
+			
  		} 
     	finally {
     		
@@ -218,6 +231,29 @@ public class AuthRequest
 		}
 		return null;
 	}
+	  
+	public void encrypt(Response response, Credential receiverCredential) throws EncryptionException, NoSuchAlgorithmException, KeyException {
+		    
+			Credential symmetricCredential = SecurityHelper.getSimpleCredential(SecurityHelper.generateSymmetricKey(EncryptionConstants.ALGO_ID_BLOCKCIPHER_AES128));
+	   
+			//The EncryptionParameters contain a reference to the shared key and the algorithm to use
+		    EncryptionParameters encParams = new EncryptionParameters();
+		    encParams.setAlgorithm(EncryptionConstants.ALGO_ID_BLOCKCIPHER_AES128);
+		    encParams.setEncryptionCredential(symmetricCredential);
+		    
+		    //The KeyEncryptionParameters contain the receiver's public key
+		    KeyEncryptionParameters kek = new KeyEncryptionParameters();
+		    kek.setAlgorithm(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15);
+		    kek.setEncryptionCredential(receiverCredential);
+		       
+		    Encrypter encrypter = new Encrypter(encParams, kek);
+		    encrypter.setKeyPlacement(KeyPlacement.INLINE);
+		       
+		    EncryptedAssertion encrypted = encrypter.encrypt(response.getAssertions().get(0));
+		    response.getEncryptedAssertions().add(encrypted);
+		       
+		    response.getAssertions().clear();
+		  }
  
 	public static class SAMLInputContainer
 	{
