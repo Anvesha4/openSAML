@@ -63,6 +63,7 @@ public class AuthResponse {
 		X509Credential privateCredential = getMyPrivateKey();
 		System.out.println(privateCredential);
 		Assertion assertion = decrypt(encryptedAssertion, privateCredential);
+		getFieldsFromAssertion(assertion);
 	}
 	public X509Credential getMyPrivateKey() throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException, SecurityException {
 		
@@ -123,15 +124,19 @@ public class AuthResponse {
 //		Decrypter decrypter = new Decrypter();
 //		decrypter.decrypt(firstAssertion);
 //		System.out.println(respObject.getAssertions().isEmpty());
-		//Assertion assertion = respObject.getAssertions().isEmpty();
-		
-//		String subject = assertion.getSubject().getNameID().getValue();
-//		String issuer = assertion.getIssuer().getValue();
-//		String audience = assertion.getConditions().getAudienceRestrictions().get(0).getAudiences().get(0).getAudienceURI();
-//		String statusCode = respObject.getStatus().getStatusCode().getValue();
-//		
-//		System.out.println(subject + issuer + audience + statusCode);
 
+
+	}
+	
+	public void getFieldsFromAssertion(Assertion assertion) {
+		System.out.println(assertion.isNil());
+		
+		String subject = assertion.getSubject().getNameID().getValue();
+		String issuer = assertion.getIssuer().getValue();
+		String audience = assertion.getConditions().getAudienceRestrictions().get(0).getAudiences().get(0).getAudienceURI();
+		//String statusCode = respObject.getStatus().getStatusCode().getValue();
+		
+		System.out.println(subject + issuer + audience);
 	}
 	
 	public Assertion decrypt(EncryptedAssertion enc, Credential credential) throws DecryptionException {
