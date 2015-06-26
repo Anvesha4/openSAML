@@ -1,8 +1,16 @@
 package openSAML.code;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.crypto.SecretKey;
 import javax.xml.parsers.DocumentBuilder;
@@ -22,10 +30,17 @@ import org.opensaml.xml.encryption.DecryptionException;
 import org.opensaml.xml.encryption.EncryptedKey;
 import org.opensaml.xml.io.Unmarshaller;
 import org.opensaml.xml.io.UnmarshallingException;
+import org.opensaml.xml.security.Criteria;
+import org.opensaml.xml.security.CriteriaSet;
+import org.opensaml.xml.security.SecurityException;
 import org.opensaml.xml.security.SecurityHelper;
+import org.opensaml.xml.security.credential.BasicCredential;
 import org.opensaml.xml.security.credential.Credential;
+import org.opensaml.xml.security.credential.KeyStoreCredentialResolver;
+import org.opensaml.xml.security.criteria.EntityIDCriteria;
 import org.opensaml.xml.security.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xml.security.keyinfo.StaticKeyInfoCredentialResolver;
+import org.opensaml.xml.security.x509.X509Credential;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
@@ -41,10 +56,34 @@ public class AuthResponse {
 		}
 	}
 	
-	public void processResponse(String responseMessage) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException {
+	public void processResponse(String responseMessage) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException, DecryptionException, KeyStoreException, NoSuchAlgorithmException, CertificateException, SecurityException {
 		
-		Response fetchedResponse = this.fetchResponse(responseMessage);
-		this.getFieldsFromResponse(fetchedResponse);
+		Response fetchedResponse = fetchResponse(responseMessage);
+		EncryptedAssertion encryptedAssertion = getEncryptedAssertion(fetchedResponse);
+		X509Credential privateCredential = getMyPrivateKey();
+		System.out.println(privateCredential);
+		Assertion assertion = decrypt(encryptedAssertion, privateCredential);
+	}
+	public X509Credential getMyPrivateKey() throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException, SecurityException {
+		
+		KeyStore keystore;
+		keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+		FileInputStream inputStream = new FileInputStream("C:/Users/anveshas/keystore.jks");
+		keystore.load(inputStream, "anvesha".toCharArray());
+		inputStream.close();
+		
+		Map<String, String> passwordMap = new HashMap<String, String>();
+		passwordMap.put("openSAMLKey", "anvesha");
+		
+		KeyStoreCredentialResolver resolver = new KeyStoreCredentialResolver(keystore, passwordMap);
+		
+		Criteria criteria = new EntityIDCriteria("openSAMLKey");
+		CriteriaSet criteriaSet = new CriteriaSet(criteria);
+		
+		X509Credential credential = (X509Credential) resolver.resolveSingle(criteriaSet);
+		
+		return credential;
+				
 	}
 	
 	public Response fetchResponse(String responseMessage) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException {
@@ -63,9 +102,6 @@ public class AuthResponse {
 		System.out.println(element);
 	
 		Unmarshaller unmarshaller = Configuration.getUnmarshallerFactory().getUnmarshaller(element);
-		if (unmarshaller == null)
-			throw new IllegalStateException("Could not obtain a SAML unmarshaller for element: " + element.getLocalName());
-
 		XMLObject xmlobj = unmarshaller.unmarshall(element);
 		Response respObject = (Response) xmlobj;
 		System.out.println(respObject);
@@ -73,7 +109,7 @@ public class AuthResponse {
 		return respObject;
 	}
 	
-	public void getFieldsFromResponse(Response respObject) {
+	public EncryptedAssertion getEncryptedAssertion(Response respObject) {
 		
 		List<EncryptedAssertion> encryptedAssertion = respObject.getEncryptedAssertions();
 		EncryptedAssertion firstAssertion = encryptedAssertion.get(0);
@@ -82,6 +118,8 @@ public class AuthResponse {
 		EncryptedKey key = firstAssertion.getEncryptedData().getKeyInfo().getEncryptedKeys().get(0);
 		 
 		System.out.println(key.toString());
+		return firstAssertion;
+		
 //		Decrypter decrypter = new Decrypter();
 //		decrypter.decrypt(firstAssertion);
 //		System.out.println(respObject.getAssertions().isEmpty());
@@ -102,7 +140,7 @@ public class AuthResponse {
 		KeyInfoCredentialResolver keyResolver = new StaticKeyInfoCredentialResolver(credential);
 	    EncryptedKey key = enc.getEncryptedData().getKeyInfo().getEncryptedKeys().get(0);
 	    
-	    //receiver's private key is used to extract the shared key (public key)
+	    //receiver's private key is used to extract the public key
 	    Decrypter decrypter = new Decrypter(null, keyResolver, null);
 	    SecretKey dkey = (SecretKey) decrypter.decryptKey(key, enc.getEncryptedData().getEncryptionMethod().getAlgorithm());
 	    

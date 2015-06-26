@@ -19,10 +19,11 @@
 	</center> -->
 <%
 
-	window.open("index.jsp", null, "height=200,width=400,status=yes,toolbar=no,menubar=no,location=no");
-	AuthRequest samlAssertion = new AuthRequest();
-	samlAssertion.samlWriter();
-	//response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/IdpInitiatedSignon.aspx"); 
+	//window.open("index.jsp", null, "height=200,width=400,status=yes,toolbar=no,menubar=no,location=no");
+	//AuthRequest samlAssertionObject = new AuthRequest();
+	//String samlAssertion = samlAssertionObject.samlWriter();
+//	response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/SAMLRequest="+samlAssertion); 
+	response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/IdpInitiatedSignon.aspx"); 
 %>
 </body>
 </html>

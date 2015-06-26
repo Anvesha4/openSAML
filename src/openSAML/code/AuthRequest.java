@@ -1,16 +1,25 @@
 package openSAML.code;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.KeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.joda.time.DateTime;
 import org.opensaml.Configuration;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.common.SAMLObjectBuilder;
 import org.opensaml.common.SAMLVersion;
+import org.opensaml.common.xml.SAMLConstants;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.Attribute;
 import org.opensaml.saml2.core.AttributeStatement;
@@ -31,6 +40,12 @@ import org.opensaml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml2.core.impl.AssertionMarshaller;
 import org.opensaml.saml2.encryption.Encrypter;
 import org.opensaml.saml2.encryption.Encrypter.KeyPlacement;
+import org.opensaml.saml2.metadata.IDPSSODescriptor;
+import org.opensaml.saml2.metadata.provider.DOMMetadataProvider;
+import org.opensaml.saml2.metadata.provider.MetadataProviderException;
+import org.opensaml.security.MetadataCredentialResolver;
+import org.opensaml.security.MetadataCredentialResolverFactory;
+import org.opensaml.security.MetadataCriteria;
 import org.opensaml.xml.ConfigurationException;
 import org.opensaml.xml.XMLObjectBuilder;
 import org.opensaml.xml.XMLObjectBuilderFactory;
@@ -41,11 +56,20 @@ import org.opensaml.xml.encryption.KeyEncryptionParameters;
 import org.opensaml.xml.io.MarshallingException;
 import org.opensaml.xml.io.AbstractXMLObjectMarshaller;
 import org.opensaml.xml.io.MarshallingException;
+import org.opensaml.xml.parse.BasicParserPool;
 import org.opensaml.xml.schema.XSString;
+import org.opensaml.xml.security.CriteriaSet;
+import org.opensaml.xml.security.SecurityException;
 import org.opensaml.xml.security.SecurityHelper;
 import org.opensaml.xml.security.credential.Credential;
+import org.opensaml.xml.security.credential.UsageType;
+import org.opensaml.xml.security.criteria.EntityIDCriteria;
+import org.opensaml.xml.security.criteria.UsageCriteria;
+import org.opensaml.xml.security.x509.X509Credential;
 import org.opensaml.xml.util.XMLHelper;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.xml.sax.SAXException;
 
 /**
  * This is a demo class which creates a valid SAML 2.0 Assertion.
@@ -63,7 +87,7 @@ public class AuthRequest
 		}
  	}
 	
-	public void samlWriter() throws MarshallingException {
+	public String samlWriter() throws MarshallingException, ParserConfigurationException, SAXException, IOException, MetadataProviderException, SecurityException, NoSuchAlgorithmException, KeyException, EncryptionException {
 		try {
     		SAMLInputContainer input = new SAMLInputContainer();
 			input.strIssuer = "https://localhost:8443/openSAML/index.jsp";
@@ -80,11 +104,18 @@ public class AuthRequest
 			Assertion assertion = AuthRequest.buildDefaultAssertion(input);
 			AssertionMarshaller marshaller = new AssertionMarshaller();
 			Element plaintextElement = marshaller.marshall(assertion);
+			//Response responseToEncrypt = (Response) marshaller.marshall(assertion);
 			String originalAssertionString = XMLHelper.nodeToString(plaintextElement);
- 
+			
+			//System.out.println(assertionToEncrypt);
+			X509Credential credential = getCredential("C:/Users/anveshas/FederationMetadata.xml"); 
+			System.out.println(credential.getEntityCertificate().getPublicKey());
 			System.out.println("Assertion String: " + originalAssertionString);
- 
-			// TODO: now you can also add encryption....
+			
+			EncryptedAssertion encryptedAssertion = encrypt(assertion, credential);
+			System.out.println(encryptedAssertion.getEncryptedData().getCipherData().getCipherValue().getValue());
+
+			return encryptedAssertion.getEncryptedData().toString();
 			
  		} 
     	finally {
@@ -231,8 +262,41 @@ public class AuthRequest
 		}
 		return null;
 	}
-	  
-	public void encrypt(Response response, Credential receiverCredential) throws EncryptionException, NoSuchAlgorithmException, KeyException {
+	 
+	public X509Credential getCredential(String federationMetadata) throws ParserConfigurationException, SAXException, IOException, MetadataProviderException, SecurityException {
+		
+		//The Meta data resolver helps to extract public credentials from meta data
+
+		//First we create a meta data provider.
+		InputStream metadataInputStream = new FileInputStream(federationMetadata);
+		DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+		documentBuilderFactory.setNamespaceAware(true);
+		DocumentBuilder docBuilder = documentBuilderFactory.newDocumentBuilder();
+
+		Document metadataDocument = docBuilder.parse(metadataInputStream);
+		Element metadataRoot = metadataDocument.getDocumentElement();
+		metadataInputStream.close();
+		
+		DOMMetadataProvider idpMetadataProvider = new DOMMetadataProvider(metadataRoot);
+		idpMetadataProvider.setRequireValidMetadata(true);
+		idpMetadataProvider.setParserPool(new BasicParserPool());
+		idpMetadataProvider.initialize();
+
+		//Resolve the credential
+		MetadataCredentialResolverFactory credentialResolverFactory = MetadataCredentialResolverFactory.getFactory();
+		 
+		MetadataCredentialResolver credentialResolver = credentialResolverFactory.getInstance(idpMetadataProvider);
+		 
+		CriteriaSet criteriaSet = new CriteriaSet();
+		criteriaSet.add(new MetadataCriteria(IDPSSODescriptor.DEFAULT_ELEMENT_NAME, SAMLConstants.SAML20P_NS));
+		criteriaSet.add(new EntityIDCriteria("http://colo-pm2.adx.isi.edu/adfs/services/trust"));
+		criteriaSet.add(new UsageCriteria(UsageType.SIGNING));
+ 
+		X509Credential credential = (X509Credential)credentialResolver.resolveSingle(criteriaSet);
+		return credential;
+	}
+	
+	public EncryptedAssertion encrypt(Assertion assertion, X509Credential receiverCredential) throws EncryptionException, NoSuchAlgorithmException, KeyException {
 		    
 			Credential symmetricCredential = SecurityHelper.getSimpleCredential(SecurityHelper.generateSymmetricKey(EncryptionConstants.ALGO_ID_BLOCKCIPHER_AES128));
 	   
@@ -249,10 +313,13 @@ public class AuthRequest
 		    Encrypter encrypter = new Encrypter(encParams, kek);
 		    encrypter.setKeyPlacement(KeyPlacement.INLINE);
 		       
-		    EncryptedAssertion encrypted = encrypter.encrypt(response.getAssertions().get(0));
-		    response.getEncryptedAssertions().add(encrypted);
-		       
-		    response.getAssertions().clear();
+		    EncryptedAssertion encrypted = encrypter.encrypt(assertion);
+		    
+		    return encrypted;
+//		    response.getEncryptedAssertions().add(encrypted);
+//		       
+//		    response.getAssertions().clear();
+//		    System.out.println(response);
 		  }
  
 	public static class SAMLInputContainer
