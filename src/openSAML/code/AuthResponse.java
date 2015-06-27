@@ -1,6 +1,7 @@
 package openSAML.code;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -9,6 +10,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -19,17 +21,24 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.codec.binary.Base64;
 import org.opensaml.DefaultBootstrap;
+import org.opensaml.common.xml.SAMLConstants;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml2.core.Response;
 import org.opensaml.saml2.encryption.Decrypter;
+import org.opensaml.saml2.metadata.EntityDescriptor;
+import org.opensaml.saml2.metadata.provider.FilesystemMetadataProvider;
+import org.opensaml.saml2.metadata.provider.MetadataProviderException;
+import org.opensaml.security.SAMLSignatureProfileValidator;
 import org.opensaml.xml.Configuration;
 import org.opensaml.xml.ConfigurationException;
 import org.opensaml.xml.XMLObject;
 import org.opensaml.xml.encryption.DecryptionException;
 import org.opensaml.xml.encryption.EncryptedKey;
+import org.opensaml.xml.encryption.InlineEncryptedKeyResolver;
 import org.opensaml.xml.io.Unmarshaller;
 import org.opensaml.xml.io.UnmarshallingException;
+import org.opensaml.xml.parse.BasicParserPool;
 import org.opensaml.xml.security.Criteria;
 import org.opensaml.xml.security.CriteriaSet;
 import org.opensaml.xml.security.SecurityException;
@@ -41,8 +50,13 @@ import org.opensaml.xml.security.criteria.EntityIDCriteria;
 import org.opensaml.xml.security.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xml.security.keyinfo.StaticKeyInfoCredentialResolver;
 import org.opensaml.xml.security.x509.X509Credential;
+import org.opensaml.xml.signature.SignableXMLObject;
+import org.opensaml.xml.signature.Signature;
+import org.opensaml.xml.signature.SignatureValidator;
+import org.opensaml.xml.validation.ValidationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class AuthResponse {
@@ -56,16 +70,42 @@ public class AuthResponse {
 		}
 	}
 	
-	public void processResponse(String responseMessage) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException, DecryptionException, KeyStoreException, NoSuchAlgorithmException, CertificateException, SecurityException {
+	public HashMap<String, HashSet<String>> processResponse(String responseMessage) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException, DecryptionException, KeyStoreException, NoSuchAlgorithmException, CertificateException, SecurityException, ValidationException, MetadataProviderException {
 		
 		Response fetchedResponse = fetchResponse(responseMessage);
 		EncryptedAssertion encryptedAssertion = getEncryptedAssertion(fetchedResponse);
-		X509Credential privateCredential = getMyPrivateKey();
-		System.out.println(privateCredential);
-		Assertion assertion = decrypt(encryptedAssertion, privateCredential);
-		getFieldsFromAssertion(assertion);
+		X509Credential privateCredential = getMyKey();
+		Assertion assertion = decrypt(encryptedAssertion, privateCredential, "C:/Users/anveshas/FederationMetadata.xml");
+		Signature idpSignature = assertion.getSignature();
+		HashMap<String, HashSet<String>> claimsContainer = getFieldsFromAssertion(assertion);
+		
+		if (idpSignature == null)
+			System.err.println("Cannot extract signature from the Identity Provider");
+		else
+			verifyIDP(idpSignature, "C:/Users/anveshas/FederationMetadata.xml");
+			
+		
+		return claimsContainer;
 	}
-	public X509Credential getMyPrivateKey() throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException, SecurityException {
+	
+	public void verifyIDP(Signature idpSignature, String federationMetadata) throws ValidationException, MetadataProviderException, ParserConfigurationException, SAXException, IOException, SecurityException {
+
+		/*FilesystemMetadataProvider idpMetaDataProvider = new FilesystemMetadataProvider(new File(federationMetadata));
+		idpMetaDataProvider.setRequireValidMetadata(true);
+		idpMetaDataProvider.setParserPool(new BasicParserPool());
+		idpMetaDataProvider.initialize();
+		
+		EntityDescriptor idpEntityDescriptor = idpMetaDataProvider.getEntityDescriptor("http://colo-pm2.adx.isi.edu/adfs/services/trust");
+		*/
+		SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
+		profileValidator.validate(idpSignature);
+		 
+		SignatureValidator sigValidator = new SignatureValidator(AuthRequest.getCredential(federationMetadata));
+		 
+		sigValidator.validate(idpSignature);
+	}
+	
+	public X509Credential getMyKey() throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException, SecurityException {
 		
 		KeyStore keystore;
 		keystore = KeyStore.getInstance(KeyStore.getDefaultType());
@@ -120,40 +160,78 @@ public class AuthResponse {
 		 
 		System.out.println(key.toString());
 		return firstAssertion;
+	}
+	
+	/*public String getSignatureFromAssertion(Assertion assertion) {
 		
-//		Decrypter decrypter = new Decrypter();
-//		decrypter.decrypt(firstAssertion);
-//		System.out.println(respObject.getAssertions().isEmpty());
+		Element domElement = assertion.getDOM();
+		NodeList nodeList = domElement.getChildNodes();
+		
+		for (int i=0; i<nodeList.getLength(); i++) {
+			if (nodeList.item(i).getNodeName().toString() == "Signature") {
+				return nodeList.item(i).getTextContent();
+			}
+			
+			else
+				continue;
+				//System.out.println(nodeList.item(i).getTextContent());
+		}
+		
+		return null;
 
+	}*/
+	
+	public HashMap<String, HashSet<String>> getFieldsFromAssertion(Assertion assertion) {
+		
+		HashMap<String, HashSet<String>> claimsContainer = new HashMap<String, HashSet<String>> ();
+		Element domElement = assertion.getDOM();
+		NodeList nodeList = domElement.getChildNodes();
+		//System.out.println(nodeList.getLength());
+		
+		for (int i=0; i<nodeList.getLength(); i++) {
+			if (nodeList.item(i).getNodeName().toString() == "AttributeStatement") {
+				NodeList claimNodes = nodeList.item(i).getChildNodes();
+				for (int j=0; j<claimNodes.getLength(); j++) {
+					
+					String key = claimNodes.item(j).getAttributes().item(0).getTextContent();
+					NodeList childClaimNodes = claimNodes.item(j).getChildNodes();
+					HashSet<String> values = new HashSet<String> ();
+
+					for (int k=0; k<childClaimNodes.getLength(); k++) {
+						values.add(childClaimNodes.item(k).getTextContent());
+					}
+					claimsContainer.put(key,values);
+				}
+			}
+			
+			else
+				continue;
+				//System.out.println(nodeList.item(i).getTextContent());
+		}
+		
+		return claimsContainer;
 
 	}
 	
-	public void getFieldsFromAssertion(Assertion assertion) {
-		System.out.println(assertion.isNil());
-		
-		String subject = assertion.getSubject().getNameID().getValue();
-		String issuer = assertion.getIssuer().getValue();
-		String audience = assertion.getConditions().getAudienceRestrictions().get(0).getAudiences().get(0).getAudienceURI();
-		//String statusCode = respObject.getStatus().getStatusCode().getValue();
-		
-		System.out.println(subject + issuer + audience);
-	}
-	
-	public Assertion decrypt(EncryptedAssertion enc, Credential credential) throws DecryptionException {
+	public Assertion decrypt(EncryptedAssertion enc, Credential credential, String federationMetadata) throws DecryptionException, ValidationException, ParserConfigurationException, SAXException, IOException, MetadataProviderException, SecurityException {
 	    
 		//credential is the receiver's private key
 		KeyInfoCredentialResolver keyResolver = new StaticKeyInfoCredentialResolver(credential);
 	    EncryptedKey key = enc.getEncryptedData().getKeyInfo().getEncryptedKeys().get(0);
 	    
 	    //receiver's private key is used to extract the public key
-	    Decrypter decrypter = new Decrypter(null, keyResolver, null);
-	    SecretKey dkey = (SecretKey) decrypter.decryptKey(key, enc.getEncryptedData().getEncryptionMethod().getAlgorithm());
+	    Decrypter decrypter = new Decrypter(null, keyResolver, new InlineEncryptedKeyResolver());
+	    decrypter.setRootInNewDocument(true);
 	    
-
+	    SecretKey dkey = (SecretKey) decrypter.decryptKey(key, enc.getEncryptedData().getEncryptionMethod().getAlgorithm());
 	    Credential shared = SecurityHelper.getSimpleCredential(dkey);
 	    
 	    //Decrypt the data
 	    decrypter = new Decrypter(new StaticKeyInfoCredentialResolver(shared), null, null);
-	    return decrypter.decrypt(enc);
+	    decrypter.setRootInNewDocument(true);
+	    Assertion assertion = decrypter.decrypt(enc);
+	    
+	    
+	    return assertion;
 	  }
 }

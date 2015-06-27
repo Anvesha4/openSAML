@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -17,35 +19,46 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.joda.time.DateTime;
 import org.opensaml.Configuration;
 import org.opensaml.DefaultBootstrap;
+import org.opensaml.common.SAMLObject;
 import org.opensaml.common.SAMLObjectBuilder;
 import org.opensaml.common.SAMLVersion;
+import org.opensaml.common.binding.BasicSAMLMessageContext;
 import org.opensaml.common.xml.SAMLConstants;
+import org.opensaml.saml2.binding.encoding.HTTPRedirectDeflateEncoder;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.Attribute;
 import org.opensaml.saml2.core.AttributeStatement;
 import org.opensaml.saml2.core.AttributeValue;
 import org.opensaml.saml2.core.AuthnContext;
 import org.opensaml.saml2.core.AuthnContextClassRef;
+import org.opensaml.saml2.core.AuthnContextComparisonTypeEnumeration;
+import org.opensaml.saml2.core.AuthnRequest;
 import org.opensaml.saml2.core.AuthnStatement;
 import org.opensaml.saml2.core.Condition;
 import org.opensaml.saml2.core.Conditions;
 import org.opensaml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml2.core.Issuer;
 import org.opensaml.saml2.core.NameID;
+import org.opensaml.saml2.core.NameIDPolicy;
 import org.opensaml.saml2.core.OneTimeUse;
+import org.opensaml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml2.core.Response;
 import org.opensaml.saml2.core.Subject;
 import org.opensaml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml2.core.impl.AssertionMarshaller;
+import org.opensaml.saml2.core.impl.EncryptedAssertionMarshaller;
 import org.opensaml.saml2.encryption.Encrypter;
 import org.opensaml.saml2.encryption.Encrypter.KeyPlacement;
 import org.opensaml.saml2.metadata.IDPSSODescriptor;
+import org.opensaml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml2.metadata.provider.DOMMetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProviderException;
 import org.opensaml.security.MetadataCredentialResolver;
 import org.opensaml.security.MetadataCredentialResolverFactory;
 import org.opensaml.security.MetadataCriteria;
+import org.opensaml.ws.message.encoder.MessageEncodingException;
+import org.opensaml.ws.transport.http.HttpServletResponseAdapter;
 import org.opensaml.xml.ConfigurationException;
 import org.opensaml.xml.XMLObjectBuilder;
 import org.opensaml.xml.XMLObjectBuilderFactory;
@@ -104,25 +117,98 @@ public class AuthRequest
 			Assertion assertion = AuthRequest.buildDefaultAssertion(input);
 			AssertionMarshaller marshaller = new AssertionMarshaller();
 			Element plaintextElement = marshaller.marshall(assertion);
-			//Response responseToEncrypt = (Response) marshaller.marshall(assertion);
 			String originalAssertionString = XMLHelper.nodeToString(plaintextElement);
 			
-			//System.out.println(assertionToEncrypt);
-			X509Credential credential = getCredential("C:/Users/anveshas/FederationMetadata.xml"); 
-			System.out.println(credential.getEntityCertificate().getPublicKey());
 			System.out.println("Assertion String: " + originalAssertionString);
 			
+			//Do the encryption
+			X509Credential credential = getCredential("C:/Users/anveshas/FederationMetadata.xml"); 
+			System.out.println(credential.getEntityCertificate().getPublicKey());
+			
 			EncryptedAssertion encryptedAssertion = encrypt(assertion, credential);
-			System.out.println(encryptedAssertion.getEncryptedData().getCipherData().getCipherValue().getValue());
-
-			return encryptedAssertion.getEncryptedData().toString();
+			EncryptedAssertionMarshaller marshallerEncryptedAssertion = new EncryptedAssertionMarshaller();
+			Element plaintextEncryptedAssertion = marshallerEncryptedAssertion.marshall(encryptedAssertion);
+			String encryptedAssertionString = XMLHelper.nodeToString(plaintextEncryptedAssertion);
+			System.out.println("Encrypted Assertion String: " + encryptedAssertionString);
+			
+			return encryptedAssertionString;
 			
  		} 
     	finally {
     		
     	}
 	}
- 
+	
+/*	public void doAuthenticationRedirect(final HttpServletResponse response, final HttpSession currentSession, final String gotoURL, final SAMLMetaData metaData) throws IllegalArgumentException, SecurityException, IllegalAccessException {
+		  AuthnRequest authnRequest = generateAuthnRequest(metaData);
+		 
+		  SAMLUtil.logSAMLObject(authnRequest);
+		 
+		  // Save the request ID to session for future validation
+		  currentSession.setAttribute("AuthnRequestID", authnRequest.getID());
+		  currentSession.setAttribute("goto", gotoURL);
+		 
+		  HttpServletResponseAdapter responseAdapter = new HttpServletResponseAdapter(response, true);
+		  BasicSAMLMessageContext<SAMLObject, AuthnRequest, SAMLObject> context = new BasicSAMLMessageContext<SAMLObject, AuthnRequest, SAMLObject>();  
+		  context.setPeerEntityEndpoint(getEndpointFromMetaData());
+		  context.setOutboundSAMLMessage(authnRequest);
+		  context.setOutboundSAMLMessageSigningCredential(getSigningCredential());
+		  context.setOutboundMessageTransport(responseAdapter);
+		 
+		  HTTPRedirectDeflateEncoder encoder = new HTTPRedirectDeflateEncoder();
+		 
+		  try {
+		   encoder.encode(context);
+		  } catch (MessageEncodingException e) {
+		  
+		  }
+		 }
+		 
+	private AuthnRequest generateAuthnRequest(final SAMLMetaData metaData) throws IllegalArgumentException, SecurityException, IllegalAccessException {
+		 
+		  AuthnRequest authnRequest = SAMLUtil.buildSAMLObjectWithDefaultName(AuthnRequest.class);
+		 
+		  authnRequest.setForceAuthn(true);
+		  authnRequest.setIsPassive(false);
+		  authnRequest.setIssueInstant(new DateTime());
+		  for (SingleSignOnService sss : metaData.getIdpEntityDescriptor().getIDPSSODescriptor(SAMLConstants.SAML20P_NS).getSingleSignOnServices()) {
+		   if (sss.getBinding().equals(SAMLConstants.SAML2_REDIRECT_BINDING_URI)) {
+		    authnRequest.setDestination(sss.getLocation());
+		   }
+		  }
+		  authnRequest.setProtocolBinding(SAMLConstants.SAML2_ARTIFACT_BINDING_URI);
+		 
+		  String deployURL = getDeployURL();
+		  if (deployURL.charAt(deployURL.length() - 1) == '/') {
+		   deployURL = deployURL.substring(0, deployURL.length() - 1);
+		  }
+		  authnRequest.setAssertionConsumerServiceURL(deployURL + SAMLMetaData.CONSUMER_PATH);
+		 
+		  authnRequest.setID(SAMLUtil.getSecureRandomIdentifier());
+		 
+		  Issuer issuer = SAMLUtil.buildSAMLObjectWithDefaultName(Issuer.class);
+		  issuer.setValue(getSPEntityId());
+		  authnRequest.setIssuer(issuer);
+		 
+		  NameIDPolicy nameIDPolicy = SAMLUtil.buildSAMLObjectWithDefaultName(NameIDPolicy.class);
+		  nameIDPolicy.setSPNameQualifier(getSPEntityId());
+		  nameIDPolicy.setAllowCreate(true);
+		  nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:2.0:nameid-format:transient");
+		 
+		  authnRequest.setNameIDPolicy(nameIDPolicy);
+		 
+		  RequestedAuthnContext requestedAuthnContext = SAMLUtil.buildSAMLObjectWithDefaultName(RequestedAuthnContext.class);
+		  requestedAuthnContext.setComparison(AuthnContextComparisonTypeEnumeration.MINIMUM);
+		 
+		  AuthnContextClassRef authnContextClassRef = SAMLUtil.buildSAMLObjectWithDefaultName(AuthnContextClassRef.class);
+		  authnContextClassRef.setAuthnContextClassRef("urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport");
+		 
+		  requestedAuthnContext.getAuthnContextClassRefs().add(authnContextClassRef);
+		  authnRequest.setRequestedAuthnContext(requestedAuthnContext);
+		 
+		  return authnRequest;
+		 }
+*/ 
 	private static XMLObjectBuilderFactory builderFactory;
  
 	public static XMLObjectBuilderFactory getSAMLBuilder() throws ConfigurationException{
@@ -263,7 +349,7 @@ public class AuthRequest
 		return null;
 	}
 	 
-	public X509Credential getCredential(String federationMetadata) throws ParserConfigurationException, SAXException, IOException, MetadataProviderException, SecurityException {
+	public static X509Credential getCredential(String federationMetadata) throws ParserConfigurationException, SAXException, IOException, MetadataProviderException, SecurityException {
 		
 		//The Meta data resolver helps to extract public credentials from meta data
 
