@@ -9,23 +9,14 @@
 <title>Insert title here</title>
 </head>
 <body>
-<!-- 	<h1>Login Page</h1> 
-	<center> <h2>Signup Details</h2> 
-		<form action="/" method="post"> 
-			<br/>Username:<input type="text" name="username"> 
-			<br/>Password:<input type="password" name="password"> 
-			<br/>
-			<input type="submit" value="Submit"> 
-		</form> 
-	</center> -->
 <%
 
 	//window.open("index.jsp", null, "height=200,width=400,status=yes,toolbar=no,menubar=no,location=no");
- 	/* AuthRequest samlAssertionObject = new AuthRequest();
+/*  	AuthRequest samlAssertionObject = new AuthRequest();
 	String samlAssertion = samlAssertionObject.samlWriter(); 
  	response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/?SAMLRequest="+ new String(Base64.encodeBase64String(samlAssertion.getBytes()))); 
 	 */
-	 response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/IdpInitiatedSignon.aspx"); 
+	 response.sendRedirect("https://colo-pm2.adx.isi.edu/adfs/ls/idpinitiatedsignon.aspx?loginToRp=https://localhost:8443/openSAML/consume.jsp"); 
 %>
 </body>
 </html>
